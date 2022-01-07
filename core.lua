@@ -17,23 +17,6 @@ hooksecurefunc(ReputationBarMixin,"Update",function(self)
 	end
 end)
 
--- [ParagonTooltip] Setup the Paragon Tooltip accordingly.
-hooksecurefunc("ReputationParagonFrame_SetupParagonTooltip",function(self)
-	local _,_,rewardQuestID,hasRewardPending = C_Reputation.GetFactionParagonInfo(self.factionID)
-	if hasRewardPending then
-		local factionName = GetFactionInfoByID(self.factionID)
-		local questIndex = C_QuestLog.GetLogIndexForQuestID(rewardQuestID)
-		local description = GetQuestLogCompletionText(questIndex) or ""
-		GameTooltip:ClearLines()
-		GameTooltip_SetTitle(GameTooltip,PR.L["PARAGON"],NORMAL_FONT_COLOR)
-		GameTooltip_AddHighlightLine(GameTooltip,description)
-		GameTooltip_AddQuestRewardsToTooltip(GameTooltip,rewardQuestID)
-		GameTooltip:Show()
-	else
-		GameTooltip:Hide()
-	end
-end)
-
 -- [Pet Rewards] Check if a Pet Reward is already owned.
 local ParagonPetSearchTooltip = CreateFrame("GameTooltip","ParagonPetSearchTooltip",nil,"GameTooltipTemplate")
 local ParagonIsPetOwned = function(link)
