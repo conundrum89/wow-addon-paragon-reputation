@@ -182,5 +182,7 @@ else
 	PR.L["DEFICIT"] = "Reputation Deficit"
 	PR.L["SOUND"] = "Sound Warning"
 	PR.L["ANCHOR"] = "Toggle Anchor"
+	PR.L["DISABLEBAR"] = "Disable Paragon Bar"
+	PR.L["DISABLEBARDESC"] = "Reverts the bar appearance for this reputation to the default appearance."
 	
 end

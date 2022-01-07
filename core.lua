@@ -177,6 +177,12 @@ events:SetScript("OnEvent",function(self,event,arg1,arg2)
 	end
 end)
 
+local disableOpt = CreateFrame("CheckButton", "ReputationDetailDisableParagonCheckBox", ReputationDetailMainScreenCheckBox, "OptionsSmallCheckButtonTemplate")
+disableOpt:SetSize(26, 26)
+disableOpt:SetPoint("TOPLEFT", "ReputationDetailMainScreenCheckBox", "BOTTOMLEFT", 0, 3)
+disableOpt.FontString = disableOpt:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+disableOpt.FontString:SetPoint("LEFT", ReputationDetailDisableParagonCheckBox, "RIGHT", -1, 0)
+
 -- [Paragon Overlay] Create the Overlay for the Reputation Bar.
 function ParagonReputation:CreateBarOverlay(factionBar)
 	local overlay = CreateFrame("FRAME",nil,factionBar)
@@ -197,6 +203,7 @@ end
 
 -- [Reputation Frame] Change the Reputation Bars accordingly.
 hooksecurefunc("ReputationFrame_Update",function()
+	disableOpt:Hide()
 	ReputationFrame.paragonFramesPool:ReleaseAll()
 	local factionOffset = FauxScrollFrame_GetOffset(ReputationListScrollFrame)
 	for n=1,NUM_FACTIONS_DISPLAYED,1 do
@@ -207,56 +214,90 @@ hooksecurefunc("ReputationFrame_Update",function()
 		if factionIndex <= GetNumFactions() then
 			local name,_,_,_,_,_,_,_,_,_,_,_,_,factionID = GetFactionInfo(factionIndex)
 			if factionID and C_Reputation.IsFactionParagon(factionID) then
+				if factionIndex == GetSelectedFaction() and ReputationDetailFrame:IsShown() then
+					disableOpt:Show()
+					ReputationDetailFrame:SetSize(212, 225)
+					disableOpt:SetScript("OnClick", function(self)
+						if (self:GetChecked()) then
+							PR.DisabledReps[factionID] = true
+							ReputationFrame_Update()
+						else
+							PR.DisabledReps[factionID] = false
+							ReputationFrame_Update()
+						end
+					end)
+					disableOpt:SetScript("OnEnter", function(self)
+						GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+						GameTooltip:SetText(PR.L["DISABLEBARDESC"])
+						GameTooltip:Show()
+					end)
+					disableOpt:SetScript("OnLeave", function(self) GameTooltip:Hide() end)
+					disableOpt:SetChecked(PR.DisabledReps[factionID])
+					disableOpt.FontString:SetText(PR.L["DISABLEBAR"])
+				end
+				
 				local currentValue,threshold,rewardQuestID,hasRewardPending = C_Reputation.GetFactionParagonInfo(factionID)
 				factionRow.name = name
 				factionRow.count = " |cffffffffx"..floor(currentValue/threshold)-(hasRewardPending and 1 or 0).."|r"
 				factionRow.questID = rewardQuestID
 				if currentValue then
-					local r,g,b = unpack(PR.DB.value)
-					local value = mod(currentValue,threshold)
-					if hasRewardPending then
+					if not PR.DisabledReps[factionID] then
+						local r,g,b = unpack(PR.DB.value)
+						local value = mod(currentValue,threshold)
+						if hasRewardPending then
+							local paragonFrame = ReputationFrame.paragonFramesPool:Acquire()
+							paragonFrame.factionID = factionID
+							paragonFrame:SetPoint("RIGHT",factionRow,11,0)
+							paragonFrame.Glow:SetShown(true)
+							paragonFrame.Check:SetShown(true)
+							paragonFrame:Show()
+							-- If value is 0 we force it to 1 so we don't get 0 as result, math...
+							local over = ((value <= 0 and 1) or value)/threshold
+							if not factionBar.ParagonOverlay then PR:CreateBarOverlay(factionBar) end
+							factionBar.ParagonOverlay:Show()
+							factionBar.ParagonOverlay.bar:SetWidth(factionBar.ParagonOverlay:GetWidth()*over)
+							factionBar.ParagonOverlay.bar:SetVertexColor(r+.15,g+.15,b+.15)
+							factionBar.ParagonOverlay.edge:SetVertexColor(r+.2,g+.2,b+.2,(over > .05 and .75) or 0)
+							value = value+threshold
+						else
+							if factionBar.ParagonOverlay then factionBar.ParagonOverlay:Hide() end
+						end
+						factionBar:SetMinMaxValues(0,threshold)
+						factionBar:SetValue(value)
+						factionBar:SetStatusBarColor(r,g,b)
+						factionRow.rolloverText = HIGHLIGHT_FONT_COLOR_CODE.." "..format(REPUTATION_PROGRESS_FORMAT,BreakUpLargeNumbers(value),BreakUpLargeNumbers(threshold))..FONT_COLOR_CODE_CLOSE
+						if PR.DB.text == "PARAGON" then
+							factionStanding:SetText(PR.L["PARAGON"])
+							factionRow.standingText = PR.L["PARAGON"]
+						elseif PR.DB.text == "CURRENT"  then
+							factionStanding:SetText(BreakUpLargeNumbers(value))
+							factionRow.standingText = BreakUpLargeNumbers(value)
+						elseif PR.DB.text == "VALUE" then
+							factionStanding:SetText(" "..BreakUpLargeNumbers(value).." / "..BreakUpLargeNumbers(threshold))
+							factionRow.standingText = (" "..BreakUpLargeNumbers(value).." / "..BreakUpLargeNumbers(threshold))
+							factionRow.rolloverText = nil					
+						elseif PR.DB.text == "DEFICIT" then
+							if hasRewardPending then
+								value = value-threshold
+								factionStanding:SetText("+"..BreakUpLargeNumbers(value))
+								factionRow.standingText = "+"..BreakUpLargeNumbers(value)
+							else
+								value = threshold-value
+								factionStanding:SetText(BreakUpLargeNumbers(value))
+								factionRow.standingText = BreakUpLargeNumbers(value)
+							end
+							factionRow.rolloverText = nil
+						end
+					else
+						if factionBar.ParagonOverlay then factionBar.ParagonOverlay:Hide() end
+
+						local currentValue,threshold,rewardQuestID,hasRewardPending = C_Reputation.GetFactionParagonInfo(factionID)
 						local paragonFrame = ReputationFrame.paragonFramesPool:Acquire()
 						paragonFrame.factionID = factionID
 						paragonFrame:SetPoint("RIGHT",factionRow,11,0)
-						paragonFrame.Glow:SetShown(true)
-						paragonFrame.Check:SetShown(true)
+						paragonFrame.Glow:SetShown(hasRewardPending)
+						paragonFrame.Check:SetShown(hasRewardPending)
 						paragonFrame:Show()
-						-- If value is 0 we force it to 1 so we don't get 0 as result, math...
-						local over = ((value <= 0 and 1) or value)/threshold
-						if not factionBar.ParagonOverlay then PR:CreateBarOverlay(factionBar) end
-						factionBar.ParagonOverlay:Show()
-						factionBar.ParagonOverlay.bar:SetWidth(factionBar.ParagonOverlay:GetWidth()*over)
-						factionBar.ParagonOverlay.bar:SetVertexColor(r+.15,g+.15,b+.15)
-						factionBar.ParagonOverlay.edge:SetVertexColor(r+.2,g+.2,b+.2,(over > .05 and .75) or 0)
-						value = value+threshold
-					else
-						if factionBar.ParagonOverlay then factionBar.ParagonOverlay:Hide() end
-					end
-					factionBar:SetMinMaxValues(0,threshold)
-					factionBar:SetValue(value)
-					factionBar:SetStatusBarColor(r,g,b)
-					factionRow.rolloverText = HIGHLIGHT_FONT_COLOR_CODE.." "..format(REPUTATION_PROGRESS_FORMAT,BreakUpLargeNumbers(value),BreakUpLargeNumbers(threshold))..FONT_COLOR_CODE_CLOSE
-					if PR.DB.text == "PARAGON" then
-						factionStanding:SetText(PR.L["PARAGON"])
-						factionRow.standingText = PR.L["PARAGON"]
-					elseif PR.DB.text == "CURRENT"  then
-						factionStanding:SetText(BreakUpLargeNumbers(value))
-						factionRow.standingText = BreakUpLargeNumbers(value)
-					elseif PR.DB.text == "VALUE" then
-						factionStanding:SetText(" "..BreakUpLargeNumbers(value).." / "..BreakUpLargeNumbers(threshold))
-						factionRow.standingText = (" "..BreakUpLargeNumbers(value).." / "..BreakUpLargeNumbers(threshold))
-						factionRow.rolloverText = nil					
-					elseif PR.DB.text == "DEFICIT" then
-						if hasRewardPending then
-							value = value-threshold
-							factionStanding:SetText("+"..BreakUpLargeNumbers(value))
-							factionRow.standingText = "+"..BreakUpLargeNumbers(value)
-						else
-							value = threshold-value
-							factionStanding:SetText(BreakUpLargeNumbers(value))
-							factionRow.standingText = BreakUpLargeNumbers(value)
-						end
-						factionRow.rolloverText = nil
 					end
 				end
 			else
@@ -264,6 +305,9 @@ hooksecurefunc("ReputationFrame_Update",function()
 				factionRow.count = nil
 				factionRow.questID = nil
 				if factionBar.ParagonOverlay then factionBar.ParagonOverlay:Hide() end
+				if factionIndex == GetSelectedFaction() and ReputationDetailFrame:IsShown() then 
+					ReputationDetailFrame:SetSize(212, 202)
+				end
 			end
 			if factionRow:IsMouseOver() then
 				if GameTooltip:GetOwner() == factionRow then GameTooltip:Hide() end

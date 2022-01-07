@@ -78,6 +78,7 @@ local DB = {
 	fade = 5,
 	point = {"TOP","TOP",0,-160},
 }
+local defaultDisabledReps = {}
 local vars = CreateFrame("FRAME")
 vars:RegisterEvent("ADDON_LOADED")
 vars:SetScript("OnEvent",function(self,event,name)
@@ -96,6 +97,11 @@ vars:SetScript("OnEvent",function(self,event,name)
 		PR:SetToastPosition()
 		PR:CreateOptions()
 		PR:HookScript()
+
+		if DisabledReputationsPerCharacter == nil then
+			DisabledReputationsPerCharacter = defaultDisabledReps
+		end
+		PR.DisabledReps = DisabledReputationsPerCharacter
 	end
 end)
 
